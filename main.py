@@ -5,8 +5,6 @@ import io
 import zipfile
 import json
 from datetime import datetime
-import streamlit as st
-st.write("✅ App starting...")
 
 # Import business logic
 import logic
