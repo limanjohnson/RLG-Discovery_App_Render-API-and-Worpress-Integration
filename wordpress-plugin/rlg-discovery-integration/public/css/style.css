@@ -145,12 +145,12 @@
     background: #fff;
 }
 
-.rlg-tab-pane {
-    display: none;
+.rlg-tab-content .rlg-tab-pane {
+    display: none !important;
 }
 
-.rlg-tab-pane.active {
-    display: block;
+.rlg-tab-content .rlg-tab-pane.active {
+    display: block !important;
 }
 
 .rlg-tab-pane .rlg-discovery-tool {
