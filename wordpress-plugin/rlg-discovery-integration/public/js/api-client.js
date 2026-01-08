@@ -28,6 +28,86 @@ jQuery(document).ready(function ($) {
         return prefix + ' ' + numStr;
     }
 
+    function generateBatesIndexPreview() {
+        var $indexPreview = $('#bates-index-preview');
+        if (!$indexPreview.length) return;
+
+        var files = batesPreviewState.files;
+        if (!files || files.length === 0) {
+            $indexPreview.hide();
+            return;
+        }
+
+        var prefix = $('#bates-prefix').val() || 'J.DOE';
+        var startNum = parseInt($('#bates-start').val()) || 1;
+        var digits = parseInt($('#bates-digits').val()) || 8;
+        var colorHex = $('#bates-color').val() || '#0000FF';
+
+        // Get color name from hex
+        var colorName = getColorName(colorHex);
+
+        // Get today's date
+        var today = new Date();
+        var dateStr = today.toISOString().split('T')[0];
+
+        var currentNum = startNum;
+        var rows = [];
+
+        files.forEach(function(file) {
+            var pageCount = file.pageCount || 1;
+            var firstLabel = formatBatesLabel(prefix, currentNum, digits);
+            var lastLabel = formatBatesLabel(prefix, currentNum + pageCount - 1, digits);
+            var batesRange = pageCount > 1 ? firstLabel + ' - ' + lastLabel : firstLabel;
+
+            rows.push({
+                date: dateStr,
+                color: colorName,
+                colorHex: colorHex,
+                filename: file.name,
+                batesRange: batesRange
+            });
+
+            currentNum += pageCount;
+        });
+
+        // Build table HTML
+        var html = '<table class="rlg-index-preview-table">';
+        html += '<thead><tr><th>Date</th><th>Color</th><th>Filename</th><th>Bates Range</th></tr></thead>';
+        html += '<tbody>';
+
+        rows.forEach(function(row) {
+            html += '<tr>';
+            html += '<td>' + row.date + '</td>';
+            html += '<td><span class="rlg-color-badge" style="background-color: ' + row.colorHex + ';"></span>' + row.color + '</td>';
+            html += '<td>' + row.filename + '</td>';
+            html += '<td>' + row.batesRange + '</td>';
+            html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+
+        $indexPreview.html('<h4>Index Preview</h4>' + html).show();
+    }
+
+    function getColorName(hex) {
+        var colors = {
+            '#0000ff': 'Blue',
+            '#ff0000': 'Red',
+            '#00ff00': 'Green',
+            '#008000': 'Green',
+            '#000000': 'Black',
+            '#ffffff': 'White',
+            '#ffff00': 'Yellow',
+            '#ffa500': 'Orange',
+            '#800080': 'Purple',
+            '#ffc0cb': 'Pink',
+            '#a52a2a': 'Brown',
+            '#808080': 'Gray'
+        };
+        var lowerHex = hex.toLowerCase();
+        return colors[lowerHex] || hex;
+    }
+
     function updateBatesPreview() {
         var $preview = $('#bates-preview');
         if (!$preview.length) return;
@@ -178,6 +258,11 @@ jQuery(document).ready(function ($) {
 
         loadingTask.promise.then(function(pdfDoc) {
             batesPreviewState.pdfDoc = pdfDoc;
+            // Store page count in the current file object
+            var currentFile = batesPreviewState.files[batesPreviewState.currentFileIndex];
+            if (currentFile) {
+                currentFile.pageCount = pdfDoc.numPages;
+            }
             renderPdfPage(pdfDoc, 1);
             updateFileSelector();
         }).catch(function(error) {
@@ -196,6 +281,11 @@ jQuery(document).ready(function ($) {
             batesPreviewState.pdfDoc = null;
             batesPreviewState.currentPage = 1;
             batesPreviewState.totalPages = 1;
+            // Store page count as 1 for images
+            var currentFile = batesPreviewState.files[batesPreviewState.currentFileIndex];
+            if (currentFile) {
+                currentFile.pageCount = 1;
+            }
             showBatesPreview();
             updateFileSelector();
             updatePageControls();
@@ -606,23 +696,25 @@ jQuery(document).ready(function ($) {
                     lastBatesOutput = blob;
                     lastBatesFilename = 'bates_labeled.zip';
 
-                    var filesInput = $form.find('input[type="file"]')[0];
-                    if (filesInput && filesInput.files && filesInput.files.length > 0) {
-                        var prefix = $('#bates-prefix').val() || 'J.DOE';
-                        var startNum = parseInt($('#bates-start').val()) || 1;
-                        var digits = parseInt($('#bates-digits').val()) || 8;
+                    // Use actual page counts from batesPreviewState if available
+                    var prefix = $('#bates-prefix').val() || 'J.DOE';
+                    var startNum = parseInt($('#bates-start').val()) || 1;
+                    var digits = parseInt($('#bates-digits').val()) || 8;
 
-                        lastBatesFiles = [];
-                        var currentNum = startNum;
-                        Array.from(filesInput.files).forEach(function(file) {
+                    lastBatesFiles = [];
+                    var currentNum = startNum;
+
+                    if (batesPreviewState.files && batesPreviewState.files.length > 0) {
+                        // Use preview state which has actual page counts
+                        batesPreviewState.files.forEach(function(file) {
+                            var pageCount = file.pageCount || 1;
                             var firstLabel = formatBatesLabel(prefix, currentNum, digits);
-                            var pageCount = file.type === 'application/pdf' ? 3 : 1;
                             var lastLabel = formatBatesLabel(prefix, currentNum + pageCount - 1, digits);
 
                             lastBatesFiles.push({
                                 name: file.name,
                                 category: '',
-                                batesRange: firstLabel + ' - ' + lastLabel
+                                batesRange: pageCount > 1 ? firstLabel + ' - ' + lastLabel : firstLabel
                             });
                             currentNum += pageCount;
                         });
@@ -632,6 +724,9 @@ jQuery(document).ready(function ($) {
                         $('#last-bates-info').html('<span style="color:#047857;">&#10003; Last Bates output ready (' + lastBatesFilename + ')</span>');
                         updateIndexPreview();
                     }
+
+                    // Generate and show the index preview
+                    generateBatesIndexPreview();
 
                     $status.html('<span class="rlg-status success">Success! Download started.<br><small>Output saved for Index tool.</small></span>');
                 } else {
